@@ -18,16 +18,37 @@ async function run() {
     try {
         await client.connect();
         const serviceCollection = client.db('genius-car-service').collection('services');
+        const orderCollection = client.db('genius-car-service').collection('order');
 
+
+        // Place Order
+        app.post('/placeorder', async (req, res) => {
+            const order = req.body;
+            const result = await orderCollection.insertOne(order);
+            res.send(result);
+        })
+
+        // Get all orders by user Email 
+        app.get('/order', async (req, res) => {
+            const email = req.query.email;
+            const query = {
+                email: {
+                    $in: [email]
+                }
+            };
+            console.log(query)
+            const cursor = orderCollection.find(query);
+            const order = await cursor.toArray();
+            res.send(order);
+        })
 
         // Auth 
         app.post('/login', async (req, res) => {
             const user = req.body;
-            const accessToken = jws.sign(user, process.env.SEC_KEY, {
+            const accessToken = jwt.sign(user, process.env.SEC_KEY, {
                 expiresIn: '1d'
             })
-
-            res.send(accessToken);
+            res.send({ accessToken });
         })
 
         app.get('/service', async (req, res) => {

@@ -3,6 +3,7 @@ const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
+const { status } = require('express/lib/response');
 const port = process.env.PORT || 5000;
 
 const app = express();
@@ -10,6 +11,22 @@ const app = express();
 // middleware
 app.use(cors());
 app.use(express.json());
+
+// JWT middleware 
+function verifyJwt(req, res, next) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).send({ message: 'unauthorized access' })
+    }
+    const token = authHeader.split(' ')[1];
+    jwt.verify(token, process.env.SEC_KEY, (err, decoded) => {
+        if (err) {
+            return res.status(403).send({ message: 'forbidden access' })
+        }
+        req.decoded = decoded;
+        next();
+    })
+}
 
 const uri = `mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PASS}@node-mongo-server-1.pkxfn.mongodb.net/myFirstDatabase?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
@@ -29,17 +46,21 @@ async function run() {
         })
 
         // Get all orders by user Email 
-        app.get('/order', async (req, res) => {
+        app.get('/order', verifyJwt, async (req, res) => {
+            const decodedEmail = req.decoded.email;
             const email = req.query.email;
-            const query = {
-                email: {
-                    $in: [email]
-                }
-            };
-            console.log(query)
-            const cursor = orderCollection.find(query);
-            const order = await cursor.toArray();
-            res.send(order);
+            if (decodedEmail === email) {
+                const query = {
+                    email: {
+                        $in: [email]
+                    }
+                };
+                const cursor = orderCollection.find(query);
+                const order = await cursor.toArray();
+                res.send(order);
+            } else {
+                res.status(403).send({ message: 'forbidden access' })
+            }
         })
 
         // Auth 
